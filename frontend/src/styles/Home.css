@@ -1,0 +1,98 @@
+.home-page {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 20px;
+}
+
+.header {
+    background-color: #4CAF50;
+    color: white;
+    padding: 20px;
+}
+
+.search-bar {
+    margin: 20px auto;
+    max-width: 500px;
+}
+
+.search-bar input {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+}
+
+.filter-section {
+    margin: 20px auto;
+    max-width: 500px;
+}
+
+.filter-section label {
+    display: block;
+    margin: 10px 0;
+}
+
+.notification {
+    margin: 20px auto;
+    padding: 10px;
+    background-color: #f0f8ff;
+    border: 1px solid #4CAF50;
+    max-width: 500px;
+    text-align: center;
+}
+
+.notification p {
+    margin: 0;
+    font-size: 16px;
+}
+
+.notification button {
+    margin-top: 10px;
+    padding: 5px 10px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.results-section {
+    margin: 20px auto;
+    max-width: 800px;
+    height: 300px;
+    overflow-y: scroll;
+    border: 1px solid #ccc;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+.results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.result-item {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.result-item h4 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.result-item p {
+    margin: 5px 0 0;
+    font-size: 14px;
+    color: #555;
+}
+
+.info-section {
+    margin: 40px 0;
+}
+
+.footer {
+    margin-top: 40px;
+    font-size: 14px;
+    color: gray;
+}
