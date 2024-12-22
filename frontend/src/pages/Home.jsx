@@ -1,124 +1,46 @@
+import React, { useState, useEffect } from 'react';
+
 import '../styles/Home.css';
-import React, { useState } from 'react';
+import api from '../api';
+import { Header } from '../components/Header';
+import { SearchBar } from '../components/SearchBar';
+import { Filter } from '../components/Filter';
+import { Notification } from '../components/Notification';
+import { Results } from '../components/Results';
+import { Footer } from '../components/Footer';
 
-// Components
-function Header() {
-    return (
-        <header className="header">
-            <h1>Scientific Aggregation Service</h1>
-            <p>Explore, search, and filter scientific publications with ease.</p>
-        </header>
-    );
-}
 
-function SearchBar({ onSearch }) {
-    const handleSearch = (event) => {
-        if (event.key === 'Enter') {
-            onSearch(event.target.value);
-        }
-    };
-
-    return (
-        <div className="search-bar">
-            <input
-                type="text"
-                placeholder="Search for scientific publications..."
-                onKeyDown={handleSearch}
-            />
-        </div>
-    );
-}
-
-function Filter({ filters, onFilterChange }) {
-    const handleFilterChange = (event) => {
-        const { name, value } = event.target;
-        onFilterChange(name, value);
-    };
-
-    return (
-        <div className="filter-section">
-            <h3>Filters</h3>
-            <label>
-                Category:
-                <select name="category" onChange={handleFilterChange}>
-                    <option value="">All</option>
-                    <option value="biology">Biology</option>
-                    <option value="physics">Physics</option>
-                    <option value="chemistry">Chemistry</option>
-                </select>
-            </label>
-            <label>
-                Year:
-                <input
-                    type="number"
-                    name="year"
-                    placeholder="e.g., 2024"
-                    onChange={handleFilterChange}
-                />
-            </label>
-        </div>
-    );
-}
-
-function Notification({ message, onClose }) {
-    return (
-        <div className="notification">
-            <p>{message}</p>
-            <button onClick={onClose}>Close</button>
-        </div>
-    );
-}
-
-function Results({ results }) {
-    return (
-        <div className="results-section">
-            <h3>Search Results</h3>
-            <div className="results-list">
-                {results.length > 0 ? (
-                    results.map((result, index) => (
-                        <div key={index} className="result-item">
-                            <h4>{result.title}</h4>
-                            <p>{result.description}</p>
-                        </div>
-                    ))
-                ) : (
-                    <p>No results found. Try adjusting your search or filters.</p>
-                )}
-            </div>
-        </div>
-    );
-}
-
-function Footer() {
-    return (
-        <footer className="footer">
-            <p>&copy; 2024 NerdNuggets. All rights reserved.</p>
-        </footer>
-    );
-}
-
-// Main Home Component
 function Home() {
+    const [query, setQuery] = useState('');
     const [filters, setFilters] = useState({ category: '', year: '' });
     const [notification, setNotification] = useState(null);
     const [results, setResults] = useState([]);
+    const [showResults, setShowResults] = useState(false);
 
+    const fetchResults = (query) => {
+        api.get(
+            `/api/search?query=${encodeURIComponent(query)}
+            &category=${filters.category}
+            &year=${filters.year}`
 
-    const handleSearch = (query) => {
-        console.log("Search query:", query);
-        // Example notification logic
-        setNotification(`Search executed for query: "${query}"`);
-        // Mock results for demonstration
-        setResults([
-            { title: "Publication 1", description: "Description of publication 1." },
-            { title: "Publication 2", description: "Description of publication 2." },
-            { title: "Publication 3", description: "Description of publication 3." },
-        ]);
+        )
+            .then((response) => response.json())
+            .then((data) => setResults(data.publications))
+            .catch((error) => console.error("Error:", error));
     };
 
-    const handleFilterChange = (name, value) => {
+    useEffect(() => {
+        fetchResults();
+    }, [query, filters]);
+
+    const handleSearch = (query) => {
+        setQuery(query);
+        setNotification(`Search executed for query: "${query}"`);
+    };
+
+    const handleFilterChange = (name, value) => {//+
         setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
-        console.log("Filters updated:", { ...filters, [name]: value });
+        setNotification('Filters updated', { ...filters, [name]: value });
     };
 
     const closeNotification = () => {
@@ -127,13 +49,15 @@ function Home() {
 
     return (
         <div className="home-page">
-            <Header />
-            <main>
-                <SearchBar onSearch={handleSearch} />
+            <aside className="sidebar">
                 <Filter filters={filters} onFilterChange={handleFilterChange} />
                 {notification && (
                     <Notification message={notification} onClose={closeNotification} />
                 )}
+            </aside>
+            <main className="content">
+                <Header />
+                <SearchBar onSearch={handleSearch} />
                 <Results results={results} />
                 <section className="info-section">
                     <h2>About the Service</h2>
@@ -143,7 +67,6 @@ function Home() {
                     </p>
                 </section>
             </main>
-            <Footer />
         </div>
     );
 }

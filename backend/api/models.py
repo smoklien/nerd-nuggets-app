@@ -12,3 +12,12 @@ class Note(models.Model):
     def __str__(self):
         return self.title
     
+
+class Publication(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    category = models.CharField(max_length=100)
+    year = models.IntegerField()
+    
+    def __str__(self):
+        return self.title

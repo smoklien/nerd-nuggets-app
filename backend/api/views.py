@@ -1,10 +1,12 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
-from .serializers import UserSerializer, NoteSerializer
-from rest_framework import generics
+from .serializers import UserSerializer, NoteSerializer, PublicationSerializer
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import Note
+from .models import Note, Publication
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
 class NoteListCreateView(generics.ListCreateAPIView):
     serializer_class = NoteSerializer
@@ -38,3 +40,25 @@ class CreateUserView(generics.CreateAPIView):
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
     
+    
+class SearchPublicationView(APIView):
+    def get(self, request):
+        query = request.GET.get('query', '')
+        category = request.GET.get('category', '')
+        year = request.GET.get('year', '')
+        
+        publications = Publication.objects.all()
+        
+        if query:
+            publications = publications.filter(title__icontains=query)
+            
+        if category:
+            publications = publication.filter(category_iexact=category)
+            
+        if year:
+            publications = publications.filter(year=year)
+            
+        serializer = PublicationSerializer(publications, many=True)
+        
+        return Response({'publications': serializer.data}, status=status.HTTP_200_OK)
+                                                      
