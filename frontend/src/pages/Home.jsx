@@ -17,7 +17,10 @@ function Home() {
     const [results, setResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
 
+
     const fetchResults = (query) => {
+        if (!query) return
+
         api.get(
             `/api/search?query=${encodeURIComponent(query)}
             &category=${filters.category}
@@ -29,18 +32,16 @@ function Home() {
             .catch((error) => console.error("Error:", error));
     };
 
-    useEffect(() => {
-        fetchResults();
-    }, [query, filters]);
-
     const handleSearch = (query) => {
         setQuery(query);
+        setShowResults(true);
+        fetchResults(query);
         setNotification(`Search executed for query: "${query}"`);
     };
 
-    const handleFilterChange = (name, value) => {//+
+    const handleFilterChange = (name, value) => {
         setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
-        setNotification('Filters updated', { ...filters, [name]: value });
+        setNotification(`Filters updated: ${name} = ${value}`);
     };
 
     const closeNotification = () => {
@@ -55,17 +56,19 @@ function Home() {
                     <Notification message={notification} onClose={closeNotification} />
                 )}
             </aside>
-            <main className="content">
-                <Header />
+            <main className={`content ${showResults ? 'results-mode' : ''}`}>
+                {!showResults && <Header />}
                 <SearchBar onSearch={handleSearch} />
-                <Results results={results} />
-                <section className="info-section">
-                    <h2>About the Service</h2>
-                    <p>
-                        This platform aggregates scientific publications from multiple sources,
-                        providing a simple and accessible way to search and filter scholarly content.
-                    </p>
-                </section>
+                {showResults && <Results results={results} />}
+                {!showResults && (
+                    <section className="info-section">
+                        <h2>About the Service</h2>
+                        <p>
+                            This platform aggregates scientific publications from multiple sources,
+                            providing a simple and accessible way to search and filter scholarly content.
+                        </p>
+                    </section>
+                )}
             </main>
         </div>
     );
