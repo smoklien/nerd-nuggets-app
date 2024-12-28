@@ -36,8 +36,6 @@ class AuthorSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PublicationSerializer(serializers.ModelSerializer):
-    authors = AuthorSerializer(many=True)
-
     class Meta:
         model = Publication
         fields = '__all__'

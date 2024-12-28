@@ -12,17 +12,38 @@ class Note(models.Model):
         return self.title
 
 class Author(models.Model):
+    url = models.URLField()
     name = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
 
 class Publication(models.Model):
+    url = models.URLField()
     title = models.CharField(max_length=255)
-    publication_date = models.DateField()
-    authors = models.ManyToManyField(Author, related_name="publications")
-    description = models.TextField()
-    category = models.CharField(max_length=100)
 
     def __str__(self):
         return self.title
+    
+class UserPublication(models.Model): 
+    user = models.ForeignKey(User, on_delete=models.CASCADE) 
+    publication = models.ForeignKey(Publication, on_delete=models.CASCADE) 
+    how = models.CharField(max_length=15)
+    added_on = models.DateTimeField(auto_now_add=True) 
+
+    class Meta: 
+        unique_together = ('user', 'publication', 'how')
+
+    def __str__(self): 
+        return f'{self.user.username} - {self.publication.title}'
+    
+class UserAuthor(models.Model): 
+    user = models.ForeignKey(User, on_delete=models.CASCADE) 
+    author = models.ForeignKey(Author, on_delete=models.CASCADE) 
+    added_on = models.DateTimeField(auto_now_add=True) 
+
+    class Meta: 
+        unique_together = ('user', 'author')
+
+    def __str__(self): 
+        return f'{self.user.username} - {self.author.name}'

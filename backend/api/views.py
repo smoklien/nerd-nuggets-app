@@ -5,7 +5,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserSerializer, NoteSerializer, PublicationSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import Note, Publication
+from . import models
+from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders
+from re import sub
 
 
 class NoteListCreate(generics.ListCreateAPIView):
@@ -14,7 +16,7 @@ class NoteListCreate(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Note.objects.filter(author=user)
+        return models.Note.objects.filter(author=user)
 
     def perform_create(self, serializer):
         if serializer.is_valid():
@@ -29,7 +31,7 @@ class NoteDelete(generics.DestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Note.objects.filter(author=user)
+        return models.Note.objects.filter(author=user)
 
 
 class CreateUserView(generics.CreateAPIView):
@@ -40,7 +42,26 @@ class CreateUserView(generics.CreateAPIView):
 
 class PublicationList(APIView):
     permission_classes = [AllowAny]
+
+    def searh_and_prioritize(self, request):
+        config.email = "telegram.bot656@gmail.com"
+        page = request.query_params.get('page', 1)
+        search = request.query_params.get('search', '')
+        user_id = request.query_params.get('user_id', '')
+
+        if search:
+
+            search_list = sub(r'[^\w\s]', '', search).split()
+            for word in search_list:
+                pass
+                
+
+
     def get(self, request):
-        publications = Publication.objects.all()
-        serializer = PublicationSerializer(publications, many=True)
-        return Response(serializer.data)
+        config.email = "telegram.bot656@gmail.com"
+        page = request.query_params.get('page', 1)
+        search = request.query_params.get('search', '')
+        user_id = request.query_params.get('user_id', '')
+        filter = request.query_params.get('filter', '')
+        
+        return Response(Works().search("PROTEIN").get(per_page=200, page=page))
