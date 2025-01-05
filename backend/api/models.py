@@ -12,15 +12,19 @@ class Note(models.Model):
         return self.title
 
 class Author(models.Model):
-    url = models.URLField()
-    name = models.CharField(max_length=255)
+    id = models.CharField(max_length=255, primary_key=True)
+    #url = models.URLField()
+    #name = models.CharField(max_length=255)
+    source = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
 
 class Publication(models.Model):
-    url = models.URLField()
-    title = models.CharField(max_length=255)
+    id = models.CharField(max_length=255, primary_key=True)
+    #url = models.URLField()
+    #title = models.CharField(max_length=255)
+    source = models.CharField(max_length=255)
 
     def __str__(self):
         return self.title
