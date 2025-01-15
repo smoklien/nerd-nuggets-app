@@ -42,6 +42,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
+  # Change for prod
     'ACCESS_TOKEN_LIFETIME': timedelta(days=300),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=600),
 }
@@ -145,4 +146,4 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = True # May cause errors due to strange merge conflict

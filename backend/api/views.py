@@ -34,12 +34,10 @@ class NoteDelete(generics.DestroyAPIView):
         user = self.request.user
         return models.Note.objects.filter(author=user)
 
-
 class CreateUserView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
-
 
 class PublicationView(APIView):
     # permission_classes = [AllowAny]
@@ -128,4 +126,3 @@ class PublicationList(APIView):
             self.__searh_and_prioritize__(request)
         
         return res
-    
