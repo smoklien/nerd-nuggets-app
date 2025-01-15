@@ -33,27 +33,68 @@ function Form({ route, method }) {
             setLoading(false)
         }
     }
+    return (
+        <div className="form-wrapper">
+            <form onSubmit={handleSubmit} className="form-container">
+                <h1>{name}</h1>
+                <input
+                    type="text"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="Username"
+                    className="form-input"
+                />
+                <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Password"
+                    className="form-input"
+                />
+                <button type="submit" className="form-button" disabled={loading}>
+                    {loading ? 'Loading...' : name}
+                </button>
+            </form>
+            <div className="form-toggle">
+                {method === 'login' ? (
+                    <p>
+                        Don't have an account?{' '}
+                        <span onClick={() => navigate('/register')} className="form-link">
+                            Register here
+                        </span>
+                    </p>
+                ) : (
+                    <p>
+                        Already have an account?{' '}
+                        <span onClick={() => navigate('/login')} className="form-link">
+                            Login here
+                        </span>
+                    </p>
+                )}
+            </div>
+        </div>
+    );
 
-    return <form onSubmit={handleSubmit} className="form-container">
-        <h1>{name}</h1>
-        <input
-            type="text"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder="Username"
-            className="form-input"
-        />
-        <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Password"
-            className="form-input"
-        />
-        <button type="submit" className="form-button">
-            {name}
-        </button> 
-    </form>
+    // return <form onSubmit={handleSubmit} className="form-container">
+    //     <h1>{name}</h1>
+    //     <input
+    //         type="text"
+    //         value={username}
+    //         onChange={(event) => setUsername(event.target.value)}
+    //         placeholder="Username"
+    //         className="form-input"
+    //     />
+    //     <input
+    //         type="password"
+    //         value={password}
+    //         onChange={(event) => setPassword(event.target.value)}
+    //         placeholder="Password"
+    //         className="form-input"
+    //     />
+    //     <button type="submit" className="form-button">
+    //         {name}
+    //     </button> 
+    // </form>
 }
 
 export default Form

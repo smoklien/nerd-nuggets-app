@@ -10,6 +10,7 @@
     --text-color: #eeebd6;
     --tag-color: #3e3e3e;
     --highlight-color: #79FF96;
+    --highlight-color-hover: #55c16c;
     --input-bg: #2F2F2F;
     --input-text: #aaa9a0;
     --font-family-inter: 'Inter', sans-serif;
@@ -20,6 +21,18 @@ body {
     font-family: Arial, sans-serif;
     background-color: var(--primary-color);
     color: var(--text-color);
+}
+
+input {
+    background-color: inherit;
+    color: inherit;
+    border-radius: 8px;
+
+    width: 100%;
+    padding: 15px;
+    font-size: 1rem;
+    border: none;
+    outline: none;
 }
 
 .home-page {
