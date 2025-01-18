@@ -26,122 +26,40 @@ class PublicationView(APIView):
 
     def get(self, request):
         publication_id = request.query_params.get('pub_id', '')
+        source = request.query_params.get('source', '')
         if not publication_id:
             return Response({"error": "No publication id provided"}, status=400)
-        self.update_publication_user_view_model(request)
-        return Response(Works()[publication_id])
-    
-    def update_publication_user_view_model(self, request):
-        if not models.Publication.objects.filter(id=request.query_params.get('pub_id', '')).exists():
-            publication_serializer = PublicationSerializer( data=
-                                                           {"id": request.query_params.get('pub_id', ''),
-                                                            "source": request.query_params.get('source', '')}
-                                                          )
-            if publication_serializer.is_valid():
-                publication_serializer.save()
+        if not source:
+            return Response({"error": "No source provided"}, status=400)
+        self.__update_publication_user_view_model__(request)
+        if source == "openalex":
+            w = Works()[publication_id]
+            fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
+            w = {key: w[key] for key in fields if key in w}
+            if w["abstract_inverted_index"]:
+                sorted_words = sorted(w["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+                w["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
             else:
-                pass
-
-        if not models.UserPublication.objects.filter(
-                                                     user=self.request.user.pk,
-                                                     publication=request.query_params.get('pub_id', ''),
-                                                     how=request.query_params.get('how', '')
-                                                     ).exists():
-            user_publication_serializer = UserPublicationSerializer(data=
-                                                                   {"user": self.request.user.pk,
-                                                                    "publication": request.query_params.get('pub_id', ''),
-                                                                    "how": request.query_params.get('how', '')}
-                                                                  )
-            if user_publication_serializer.is_valid():
-                user_publication_serializer.save()
-            else:
-                pass
-
-class PublicationList(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        page = int(request.query_params.get('page', 1))
-        query = request.query_params.get('query', '')
-        user_id = request.query_params.get('user_id', '')
-        filter = request.query_params.get('filter', '')
-
-        # if request.session.get("thread", ""):
-        #     if request.session["thread"].is_alive():
-        #         request.session["thread"].join()
-
-        if page == 1:
-            request.session["result"] = []
-            request.session["page"] = 1
-            self.__searh_and_prioritize__(request)
-
-        res = request.session["result"][:10]
-        request.session["result"] = request.session["result"][10:]
-
-        if len(request.session["result"]) < 10:
-            # request.session["thread"] = Thread(target=self.__searh_and_prioritize__, args=(request,))
-            # request.session["thread"].start()
-
-            # thread = Thread(target=self.__searh_and_prioritize__, args=(request,))
-            # thread.start()
-
-            self.__searh_and_prioritize__(request)
-
-        return Response(res)
+                w["abstract"] = ""
+            del w["abstract_inverted_index"]
+            w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+            del w["authorships"]
+            return Response(w)
+        # return Response(Works()[publication_id])
     
     def post(self, request):
-        action = request.query_params.get('action', '')
-        if action in ("sub", "subscribe"):
+        how = request.data.get('how', '')
+        if how in ("sub", "subscribe"):
             return self.__subscribe_on_author__(request)
-        elif action in ("unsub", "unsubscribe"):
+        elif how in ("unsub", "unsubscribe"):
             return self.__unsubscribe_on_author__(request)
         else:
             return self.__update_publication_user_view_model__(request)  
-
-    def __searh_and_prioritize__(self, request):
-        # page = request.query_params.get('page', 1)
-        query = request.query_params.get('query', '')
-        # user_id = self.request.user.pk
-        filter = request.query_params.get('filter', '')
-        year = request.query_params.get('year', '')
-
-        w = Works()
-
-        if filter:
-            filter = search_first_id(Concepts(), filter)
-            w.filter(concepts={"id":filter})
-
-        if year:
-            w.filter(publication_year=year)
-
-        if query:
-            w.search(query).sort(relevance_score="desc")
-
-        # per_page = 60 // len(work_list)
-        per_page = 60
-        # for work in work_list:
-        #     request.session["result"].extend(work.get(per_page=per_page, page=page))
-        clear_w = w
-        w.select(["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"] )
-        res = w.get(per_page=per_page, page=request.session["page"])
-        for entry in res:
-            if entry["abstract_inverted_index"]:
-                sorted_words = sorted(entry["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
-                entry["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
-            else:
-                entry["abstract"] = ""
-            del entry["abstract_inverted_index"]
-
-            entry["authors"] = {author["author"]["id"]: author["author"]["display_name"] for author in entry["authorships"]}
-            del entry["authorships"]
-        request.session["result"].extend(res)
-
-        request.session["page"] += 1
-
+    
     def __update_publication_user_view_model__(self, request):
-        pub_id = request.data.get('pub_id', '')
-        source = request.data.get('source', '')
-        how = request.data.get('how', '')
+        pub_id = request.query_params.get('pub_id', '')
+        source = request.query_params.get('source', '')
+        how = request.data.get('how', 'view')
 
         if not pub_id:
             raise ValidationError("Publication ID is required.")
@@ -173,13 +91,14 @@ class PublicationList(APIView):
 
     def __subscribe_on_author__(self, request):
         author_id = request.data.get('author_id', '')
+        source = request.query_params.get('source', '')
 
         if not author_id:
             raise ValidationError("Author ID is required.")
 
         # Check if the author exists
         if not models.Author.objects.filter(id=author_id).exists():
-            author_serializer = AuthorSerializer(data={"id": author_id})
+            author_serializer = AuthorSerializer(data={"id": author_id, "source": source})
             if author_serializer.is_valid():
                 author_serializer.save()
             else:
@@ -208,11 +127,111 @@ class PublicationList(APIView):
         else:
             return Response({"message": "UserAuthor does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-class Personalization(PublicationList):
+class PublicationListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        pass
+        page = int(request.query_params.get('page', 1))
+        query = request.query_params.get('query', '')
+        user_id = request.query_params.get('user_id', '')
+        filter = request.query_params.get('filter', '')
+
+        # if request.session.get("thread", ""):
+        #     if request.session["thread"].is_alive():
+        #         request.session["thread"].join()
+
+        if page == 1:
+            request.session["result"] = []
+            request.session["page"] = 1
+            self.__searh_and_prioritize__(request)
+
+        res = request.session["result"][:10]
+        request.session["result"] = request.session["result"][10:]
+
+        if len(request.session["result"]) < 10:
+            # request.session["thread"] = Thread(target=self.__searh_and_prioritize__, args=(request,))
+            # request.session["thread"].start()
+
+            # thread = Thread(target=self.__searh_and_prioritize__, args=(request,))
+            # thread.start()
+
+            self.__searh_and_prioritize__(request)
+
+        return Response(res)
+
+    def __searh_and_prioritize__(self, request):
+        # page = request.query_params.get('page', 1)
+        query = request.query_params.get('query', '')
+        # user_id = self.request.user.pk
+        filter = request.query_params.get('filter', '')
+        year = request.query_params.get('year', '')
+
+        w = Works()
+
+        if filter:
+            filter = search_first_id(Concepts(), filter)
+            w.filter(concepts={"id":filter})
+
+        if year:
+            w.filter(publication_year=year)
+
+        if query:
+            w.search(query).sort(relevance_score="desc")
+
+        # per_page = 60 // len(work_list)
+        per_page = 60
+        # for work in work_list:
+        #     request.session["result"].extend(work.get(per_page=per_page, page=page))
+        w.select(["title", "id", "doi","publication_year", "type"] )
+        res = w.get(per_page=per_page, page=request.session["page"])
+        # for entry in res:
+        #     if entry["abstract_inverted_index"]:
+        #         sorted_words = sorted(entry["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+        #         entry["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+        #     else:
+        #         entry["abstract"] = ""
+        #     del entry["abstract_inverted_index"]
+
+        #     entry["authors"] = {author["author"]["id"]: author["author"]["display_name"] for author in entry["authorships"]}
+        #     del entry["authorships"]
+        request.session["result"].extend(res)
+
+        request.session["page"] += 1
+
+class PersonalizationView(PublicationListView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        user_id = request.query_params.get('user_id', '')
+        if not user_id:
+            return Response({"error": "User ID is required"}, status=400)
+
+        personalized_results = []
+
+        # Get user publications (views, likes, dislikes)
+        user_publications = models.UserPublication.objects.filter(user=user_id)
+        for user_pub in user_publications:
+            work = Works()[user_pub.publication.id]
+            personalized_results.append(work)
+
+            # Include related works
+            related_works = Works().filter(relation_type="related_to", work_id=user_pub.publication.id).get()
+            personalized_results.extend(related_works)
+
+            # Include referenced works
+            referenced_works = Works().filter(relation_type="references", work_id=user_pub.publication.id).get()
+            personalized_results.extend(referenced_works)
+
+        # Get works from subscribed authors
+        user_authors = models.UserAuthor.objects.filter(user=user_id)
+        for user_author in user_authors:
+            author_works = Works().filter(author_id=user_author.author.id).get()
+            personalized_results.extend(author_works)
+
+        # Remove duplicates
+        personalized_results = {work["id"]: work for work in personalized_results}.values()
+
+        return Response(personalized_results)
 
 
 
