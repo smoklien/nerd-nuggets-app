@@ -43,3 +43,8 @@ class UserPublicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPublication
         fields = ['user', 'publication', 'how']
+
+class UserAuthorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAuthor
+        fields = ['user', 'author']
