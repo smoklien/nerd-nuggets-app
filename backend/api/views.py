@@ -1,38 +1,20 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
-from rest_framework import generics
+from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import UserSerializer, NoteSerializer, PublicationSerializer, UserPublicationSerializer
+from .serializers import UserSerializer, PublicationSerializer, UserPublicationSerializer, AuthorSerializer, UserAuthorSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from . import models
-from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders
-from re import sub
+# from threading import Thread
+from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders, Concepts
 
 OPEN_ALEX = "https://api.openalex.org/"
+config.email = "telegram.bot656@gmail.com"
 
-class NoteListCreate(generics.ListCreateAPIView):
-    serializer_class = NoteSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        return models.Note.objects.filter(author=user)
-
-    def perform_create(self, serializer):
-        if serializer.is_valid():
-            serializer.save(author=self.request.user)
-        else:
-            print(serializer.errors)
-
-
-class NoteDelete(generics.DestroyAPIView):
-    serializer_class = NoteSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        return models.Note.objects.filter(author=user)
+def search_first_id(obj, query):
+    return obj.search(query).get(per_page=1, page=1)[0]["id"]
 
 class CreateUserView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -40,89 +22,231 @@ class CreateUserView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
 class PublicationView(APIView):
-    # permission_classes = [AllowAny]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         publication_id = request.query_params.get('pub_id', '')
+        source = request.query_params.get('source', '')
         if not publication_id:
             return Response({"error": "No publication id provided"}, status=400)
-        self.update_publication_user_view_model(request)
-        return Response(Works()[publication_id])
+        if not source:
+            return Response({"error": "No source provided"}, status=400)
+        self.__update_publication_user_view_model__(request)
+        if source == "openalex":
+            w = Works()[publication_id]
+            fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
+            w = {key: w[key] for key in fields if key in w}
+            if w["abstract_inverted_index"]:
+                sorted_words = sorted(w["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+                w["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+            else:
+                w["abstract"] = ""
+            del w["abstract_inverted_index"]
+            w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+            del w["authorships"]
+            return Response(w)
+        # return Response(Works()[publication_id])
     
-    def update_publication_user_view_model(self, request):
-        if not models.Publication.objects.filter(id=request.query_params.get('pub_id', '')).exists():
-            publication_serializer = PublicationSerializer( data=
-                                                           {"id": request.query_params.get('pub_id', ''),
-                                                            "source": request.query_params.get('source', '')}
-                                                          )
+    def post(self, request):
+        how = request.data.get('how', '')
+        if how in ("sub", "subscribe"):
+            return self.__subscribe_on_author__(request)
+        elif how in ("unsub", "unsubscribe"):
+            return self.__unsubscribe_on_author__(request)
+        else:
+            return self.__update_publication_user_view_model__(request)  
+    
+    def __update_publication_user_view_model__(self, request):
+        pub_id = request.query_params.get('pub_id', '')
+        source = request.query_params.get('source', '')
+        how = request.data.get('how', 'view')
+
+        if not pub_id:
+            raise ValidationError("Publication ID is required.")
+        
+        # Check if the publication exists
+        if not models.Publication.objects.filter(id=pub_id).exists():
+            publication_serializer = PublicationSerializer(data=
+                                                           {"id": pub_id, 
+                                                            "source": source})
             if publication_serializer.is_valid():
                 publication_serializer.save()
             else:
-                pass
+                return Response(publication_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if not models.UserPublication.objects.filter(
-                                                     user=self.request.user.pk,
-                                                     publication=request.query_params.get('pub_id', ''),
-                                                     how=request.query_params.get('how', '')
-                                                     ).exists():
+        # Check if the UserPublication exists
+        if not models.UserPublication.objects.filter(user=self.request.user.pk, 
+                                                     publication=pub_id, 
+                                                     how=how).exists():
             user_publication_serializer = UserPublicationSerializer(data=
-                                                                   {"user": self.request.user.pk,
-                                                                    "publication": request.query_params.get('pub_id', ''),
-                                                                    "how": request.query_params.get('how', '')}
-                                                                  )
+                                                                    {"user": self.request.user.pk, 
+                                                                     "publication": pub_id, 
+                                                                     "how": how})
             if user_publication_serializer.is_valid():
                 user_publication_serializer.save()
             else:
-                pass
+                return Response(user_publication_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class PublicationList(APIView):
-    permission_classes = [AllowAny]
-    result = []
+        return Response({"message": "Publication and UserPublication saved successfully."}, status=status.HTTP_201_CREATED)
 
-    def __searh_and_prioritize__(self, request):
-        config.email = "telegram.bot656@gmail.com"
-        page = request.query_params.get('page', 1)
-        search = request.query_params.get('search', '')
-        user_id = self.request.user.pk
-        filter = request.query_params.get('filter', {})
+    def __subscribe_on_author__(self, request):
+        author_id = request.data.get('author_id', '')
+        source = request.query_params.get('source', '')
+
+        if not author_id:
+            raise ValidationError("Author ID is required.")
+
+        # Check if the author exists
+        if not models.Author.objects.filter(id=author_id).exists():
+            author_serializer = AuthorSerializer(data={"id": author_id, "source": source})
+            if author_serializer.is_valid():
+                author_serializer.save()
+            else:
+                return Response(author_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the UserAuthor exists
+        if not models.UserAuthor.objects.filter(user=self.request.user.pk, author=author_id).exists():
+            user_author_serializer = UserAuthorSerializer(data={"user": self.request.user.pk, "author": author_id})
+            if user_author_serializer.is_valid():
+                user_author_serializer.save()
+            else:
+                return Response(user_author_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Author and UserAuthor saved successfully."}, status=status.HTTP_201_CREATED)
+
+    def __unsubscribe_on_author__(self, request):
+        author_id = request.data.get('author_id', '')
+
+        if not author_id:
+            raise ValidationError("Author ID is required.")
+
+        # Check if the UserAuthor exists
+        if models.UserAuthor.objects.filter(user=self.request.user.pk, author=author_id).exists():
+            models.UserAuthor.objects.filter(user=self.request.user.pk, author=author_id).delete()
+            return Response({"message": "UserAuthor deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        else:
+            return Response({"message": "UserAuthor does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+class PublicationListView(APIView):
+    # permission_classes = [AllowAny]
+
+    def get(self, request):
+        page = int(request.query_params.get('page', 1))
+        query = request.query_params.get('query', '')
+        filter = request.query_params.get('filter', '')
+        year = request.query_params.get('year', '')
+
+        if page == 1:
+            request.session["result"] = []  # Reset results for a new search
+            request.session["page"] = 1
+            self.__searh_and_prioritize__(request, query, filter, year)
+
+        # Retrieve the first 10 results
+        result = request.session.get("result", [])
+        res = result[:10]
+        
+        # Update session results (remove the first 10 items)
+        request.session["result"] = result[10:]
+        
+        # If fewer than 10 results remain, fetch more results
+        if len(request.session["result"]) < 10:
+            self.__searh_and_prioritize__(request, query, filter, year)
+
+        return Response(res)
+
+    def __searh_and_prioritize__(self, request, query, filter, year):
+        """
+        Fetches results from Works API and appends them to the session results.
+        """
+        page = request.session.get('page', 1)
 
         w = Works()
 
         if filter:
-            for key, value in filter:
-                w = w.filter(**{key: value})
-        work_list = [w]
+            filter = search_first_id(Concepts(), filter)
+            w.filter(concepts={"id":filter})
 
-        if search:
-            work_list = []
-            work_list.append(w.search(search).sort(relevance_score="desc"))
-            search_list = sub(r'[^\w\s]', '', search).split()
-            for word in search_list:
-                work_list.append(w.search(word).sort(relevance_score="desc"))
+        if year:
+            w.filter(publication_year=year)
 
-        per_page = 60 / len(work_list)
-        for work in work_list:
-            self.result.extend(work.get(per_page=per_page, page=page))
-            # self.result.update(work.get(per_page=num, page=page))
+        if query:
+            w.search(query).sort(relevance_score="desc")
 
-    def __prioritize__(self, request):
-        pass
+        w.select(["title", "id", "doi","publication_year", "type"] )
+        per_page = 60
+        res = w.get(per_page=per_page, page=page)
+
+        # Extend session results and update the page counter
+        session_results = request.session.get("result", [])
+        session_results.extend(res)
+        request.session["result"] = session_results  # Re-assign to persist changes
+        page+=1
+        request.session["page"] =page
+
+class PersonalizationView(PublicationListView):
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        config.email = "telegram.bot656@gmail.com"
-        page = request.query_params.get('page', 1)
-        search = request.query_params.get('search', '')
         user_id = request.query_params.get('user_id', '')
-        filter = request.query_params.get('filter', '')
+        if not user_id:
+            return Response({"error": "User ID is required"}, status=400)
 
-        if page == 1:
-            self.result = []
-            self.__searh_and_prioritize__(request)
+        personalized_results = []
 
-        res = self.result[:10]
-        self.result = self.result[10:]
+        # Get user publications (views, likes, dislikes)
+        user_publications = models.UserPublication.objects.filter(user=user_id)
+        for user_pub in user_publications:
+            work = Works()[user_pub.publication.id]
+            personalized_results.append(work)
 
-        if len(self.result) < 10:
-            self.__searh_and_prioritize__(request)
-        
-        return res
+            # Include related works
+            related_works = Works().filter(relation_type="related_to", work_id=user_pub.publication.id).get()
+            personalized_results.extend(related_works)
+
+            # Include referenced works
+            referenced_works = Works().filter(relation_type="references", work_id=user_pub.publication.id).get()
+            personalized_results.extend(referenced_works)
+
+        # Get works from subscribed authors
+        user_authors = models.UserAuthor.objects.filter(user=user_id)
+        for user_author in user_authors:
+            author_works = Works().filter(author_id=user_author.author.id).get()
+            personalized_results.extend(author_works)
+
+        # Remove duplicates
+        personalized_results = {work["id"]: work for work in personalized_results}.values()
+
+        return Response(personalized_results)
+
+
+
+
+
+
+
+
+
+
+
+# class NoteListCreate(generics.ListCreateAPIView):
+#     serializer_class = NoteSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def get_queryset(self):
+#         user = self.request.user
+#         return models.Note.objects.filter(author=user)
+
+#     def perform_create(self, serializer):
+#         if serializer.is_valid():
+#             serializer.save(author=self.request.user)
+#         else:
+#             print(serializer.errors)
+
+
+# class NoteDelete(generics.DestroyAPIView):
+#     serializer_class = NoteSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def get_queryset(self):
+#         user = self.request.user
+#         return models.Note.objects.filter(author=user)
