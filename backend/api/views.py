@@ -219,10 +219,11 @@ class PublicationListView(APIView):
 class PersonalizationView(PublicationView):
     # permission_classes = [AllowAny]
 
+
     def get(self, request):
         # request.session["works"] = []
 
-        works = request.session.get("works", [])
+        #works = request.session.get("works", [])
 
         if not works:
             request.session["works"] = []
