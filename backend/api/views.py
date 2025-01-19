@@ -219,10 +219,11 @@ class PublicationListView(APIView):
 class PersonalizationView(PublicationView):
     # permission_classes = [AllowAny]
 
-    def get(self, request):
-        request.session["works"] = []
 
-        works = request.session.get("works", [])
+    def get(self, request):
+        # request.session["works"] = []
+
+        #works = request.session.get("works", [])
 
         if not works:
             request.session["works"] = []
@@ -233,6 +234,17 @@ class PersonalizationView(PublicationView):
         works = request.session.get("works", [])
         work = works.pop(0)
         request.session["works"] = works
+
+        fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
+        work = {key: work[key] for key in fields if key in work}
+        if work["abstract_inverted_index"]:
+            sorted_words = sorted(work["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+            work["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+        else:
+            work["abstract"] = ""
+        del work["abstract_inverted_index"]
+        work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+        del work["authorships"]
 
         self.__update_publication_user_view_model__(request, pub_id=work["id"].split("/")[-1])
 
@@ -336,7 +348,28 @@ class PersonalizationView(PublicationView):
                 "viewed": viewed,
                 "author_re": author_re}
 
+class SavedView(PublicationListView):
+    # permission_classes = [AllowAny]
 
+    def get(self, request):
+        user_id = self.request.user.pk
+        saved = models.UserPublication.objects.filter(user=user_id, how="save").values_list("publication", flat=True)
+        print(saved)
+        works = []
+        for id in saved:
+            w = Works()[id]
+            fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
+            w = {key: w[key] for key in fields if key in w}
+            if w["abstract_inverted_index"]:
+                sorted_words = sorted(w["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+                w["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+            else:
+                w["abstract"] = ""
+            del w["abstract_inverted_index"]
+            w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+            del w["authorships"]
+            works.append(w)
+        return Response(works)
 
 
 
