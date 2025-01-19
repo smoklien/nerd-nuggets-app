@@ -128,43 +128,37 @@ class PublicationView(APIView):
             return Response({"message": "UserAuthor does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
 class PublicationListView(APIView):
-    permission_classes = [AllowAny]
+    # permission_classes = [AllowAny]
 
     def get(self, request):
         page = int(request.query_params.get('page', 1))
         query = request.query_params.get('query', '')
-        user_id = request.query_params.get('user_id', '')
         filter = request.query_params.get('filter', '')
-
-        # if request.session.get("thread", ""):
-        #     if request.session["thread"].is_alive():
-        #         request.session["thread"].join()
+        year = request.query_params.get('year', '')
 
         if page == 1:
-            request.session["result"] = []
+            request.session["result"] = []  # Reset results for a new search
             request.session["page"] = 1
-            self.__searh_and_prioritize__(request)
+            self.__searh_and_prioritize__(request, query, filter, year)
 
-        res = request.session["result"][:10]
-        request.session["result"] = request.session["result"][10:]
-
+        # Retrieve the first 10 results
+        result = request.session.get("result", [])
+        res = result[:10]
+        
+        # Update session results (remove the first 10 items)
+        request.session["result"] = result[10:]
+        
+        # If fewer than 10 results remain, fetch more results
         if len(request.session["result"]) < 10:
-            # request.session["thread"] = Thread(target=self.__searh_and_prioritize__, args=(request,))
-            # request.session["thread"].start()
-
-            # thread = Thread(target=self.__searh_and_prioritize__, args=(request,))
-            # thread.start()
-
-            self.__searh_and_prioritize__(request)
+            self.__searh_and_prioritize__(request, query, filter, year)
 
         return Response(res)
 
-    def __searh_and_prioritize__(self, request):
-        # page = request.query_params.get('page', 1)
-        query = request.query_params.get('query', '')
-        # user_id = self.request.user.pk
-        filter = request.query_params.get('filter', '')
-        year = request.query_params.get('year', '')
+    def __searh_and_prioritize__(self, request, query, filter, year):
+        """
+        Fetches results from Works API and appends them to the session results.
+        """
+        page = request.session.get('page', 1)
 
         w = Works()
 
@@ -178,25 +172,16 @@ class PublicationListView(APIView):
         if query:
             w.search(query).sort(relevance_score="desc")
 
-        # per_page = 60 // len(work_list)
-        per_page = 60
-        # for work in work_list:
-        #     request.session["result"].extend(work.get(per_page=per_page, page=page))
         w.select(["title", "id", "doi","publication_year", "type"] )
-        res = w.get(per_page=per_page, page=request.session["page"])
-        # for entry in res:
-        #     if entry["abstract_inverted_index"]:
-        #         sorted_words = sorted(entry["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
-        #         entry["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
-        #     else:
-        #         entry["abstract"] = ""
-        #     del entry["abstract_inverted_index"]
+        per_page = 60
+        res = w.get(per_page=per_page, page=page)
 
-        #     entry["authors"] = {author["author"]["id"]: author["author"]["display_name"] for author in entry["authorships"]}
-        #     del entry["authorships"]
-        request.session["result"].extend(res)
-
-        request.session["page"] += 1
+        # Extend session results and update the page counter
+        session_results = request.session.get("result", [])
+        session_results.extend(res)
+        request.session["result"] = session_results  # Re-assign to persist changes
+        page+=1
+        request.session["page"] =page
 
 class PersonalizationView(PublicationListView):
     permission_classes = [AllowAny]

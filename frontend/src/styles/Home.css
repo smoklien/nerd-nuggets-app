@@ -46,7 +46,7 @@ input {
 
 .sidebar {
     background-color: var(--secondary-color);
-    padding: 20px;
+    padding: 70px 20px 20px 20px;
     width: 300px;
 }
 
@@ -76,7 +76,21 @@ input {
     flex: 1;
     display: flex;
     flex-direction: column;
+    height: 100%;
     align-items: left;
+}
+
+.top-bar {
+    padding: 20px;
+    gap: 20px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.loading-message {
+    text-align: left;
+    font-size: 24px;
+    margin: 20px 20px 0 100px;
 }
 
 .header {
@@ -139,23 +153,38 @@ input {
     width: 50%;
     padding: clamp(1rem, 5vw, 2rem);
     overflow-y: auto;
-
     gap: 1rem;
-
     display: flex;
     flex-direction: column;
-
-    /* height: clamp(200px, calc(70vh - 50px), 500px); */
     overflow-y: auto;
     background-color: var(--input-bg);
     max-height: calc(100vh - 100px);
-    /* Adjust height to fit within the page layout */
-
     scrollbar-width: thin;
     scrollbar-color: #888 #333;
-
-    /* padding: 20px; */
     border-radius: 8px;
+}
+
+.observer-trigger {
+    height: 1px;
+    visibility: hidden;
+}
+
+.loading-message,
+.loading-more-message,
+.end-message {
+    text-align: center;
+    margin: 20px 0;
+    color: var(--text-color);
+}
+
+.loading-more-message {
+    font-size: 0.9rem;
+    color: var(--input-text);
+}
+
+.end-message {
+    font-weight: bold;
+    color: var(--input-text);
 }
 
 .results-container::-webkit-scrollbar {
@@ -185,13 +214,31 @@ input {
 }
 
 .result-title {
-    color: var(--highlight-color);
+    color: var(--text-color);
     font-size: 1.2rem;
     margin-bottom: 0.5rem;
 }
 
 .result-content {
     max-width: 70%;
+}
+
+/* unvisited link */
+.result-doi:link {
+    color: var(--highlight-color);
+    font-size: 0.8rem;
+}
+
+/* mouse over link */
+.result-doi:hover {
+    color: var(--highlight-color-hover);
+}
+
+/* visited link */
+/* selected link */
+.result-doi:visited,
+.result-doi:active {
+    color: var(--text-color);
 }
 
 .result-card p {
@@ -208,7 +255,7 @@ input {
     gap: 0.5rem;
 }
 
-.result-author,
+.result-type,
 .result-year {
     font-size: 0.9rem;
     background-color: var(--tag-color);
@@ -219,16 +266,12 @@ input {
 
 .info-section {
     margin: 20px 20px 0 100px;
-    justify-self: end;
     width: 50%;
     padding: 20px;
+    margin-top: auto;
+    /* Push footer to the bottom */
+
     color: var(--input-text);
     /* background-color: var(--input-bg); */
     border-radius: 8px;
-}
-
-.footer {
-    margin-top: 40px;
-    font-size: 14px;
-    color: gray;
 }

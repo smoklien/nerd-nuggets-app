@@ -1,75 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import '../styles/Home.css';
-import api from '../api';
 import { Header } from '../components/Header';
 import { SearchBar } from '../components/SearchBar';
 import { Filter } from '../components/Filter';
-import { Notification } from '../components/Notification';
+import { Notifications } from '../components/Notifications';
+import { ProfileMenu } from '../components/ProfileMenu';
 import { Results } from '../components/Results';
-import { Footer } from '../components/Footer';
+import { InfoSection } from '../components/InfoSection';
 
 
 function Home() {
     const [query, setQuery] = useState('');
     const [filters, setFilters] = useState({ category: '', year: '' });
-    const [notification, setNotification] = useState(null);
-    const [results, setResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
-
-
-    const fetchResults = (query) => {
-        if (!query) return
-
-        api.get(
-            `/api/search?query=${encodeURIComponent(query)}
-            &category=${filters.category}
-            &year=${filters.year}`
-
-        )
-            .then((response) => response.json())
-            .then((data) => setResults(data.publications))
-            .catch((error) => console.error("Error:", error));
-    };
+    const [activeDropdown, setActiveDropdown] = useState(null);
 
     const handleSearch = (query) => {
         setQuery(query);
         setShowResults(true);
-        fetchResults(query);
-        setNotification(`Search executed for query: "${query}"`);
     };
-
+ 
     const handleFilterChange = (name, value) => {
         setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
-        setNotification(`Filters updated: ${name} = ${value}`);
+    };
+  
+    const handleDropdownToggle = (dropdownName) => {
+        setActiveDropdown((prev) => (prev === dropdownName ? null : dropdownName));
     };
 
-    const closeNotification = () => {
-        setNotification(null);
+    const closeDropdown = () => {
+        setActiveDropdown(null);
     };
 
     return (
-        <div className="home-page">
+        <div className="home-page" onClick={closeDropdown}>
             <aside className="sidebar">
                 <Filter filters={filters} onFilterChange={handleFilterChange} />
-                {notification && (
-                    <Notification message={notification} onClose={closeNotification} />
-                )}
             </aside>
             <main className={`content ${showResults ? 'results-mode' : ''}`}>
                 {!showResults && <Header />}
                 <SearchBar onSearch={handleSearch} />
-                {showResults && <Results results={results} />}
-                {!showResults && (
-                    <section className="info-section">
-                        <h2>About the Service</h2>
-                        <p>
-                            This platform aggregates scientific publications from multiple sources,
-                            providing a simple and accessible way to search and filter scholarly content.
-                        </p>
-                    </section>
-                )}
+                {showResults && <Results query={query} filters={filters} />}
+                {!showResults && <InfoSection />}
             </main>
+            <header className="top-bar" onClick={(e) => e.stopPropagation()}>
+                <Notifications
+                    isActive={activeDropdown === 'notifications'}
+                    onToggle={() => handleDropdownToggle('notifications')}
+                />
+                <ProfileMenu
+                    isActive={activeDropdown === 'profile'}
+                    onToggle={() => handleDropdownToggle('profile')}
+                />
+            </header>
         </div>
     );
 }
