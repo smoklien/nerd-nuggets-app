@@ -56,23 +56,17 @@ class PublicationView(APIView):
         else:
             return self.__update_publication_user_view_model__(request)  
     
-    def __update_publication_user_view_model__(self, request):
-        pub_id = request.query_params.get('pub_id', '')
-        source = request.query_params.get('source', '')
+    def __update_publication_user_view_model__(self, request, pub_id=None):
+        if not pub_id:
+            pub_id = request.query_params.get('pub_id', '')
+        source = request.query_params.get('source', 'openalex')
         how = request.data.get('how', 'view')
 
         if not pub_id:
             raise ValidationError("Publication ID is required.")
         
         # Check if the publication exists
-        if not models.Publication.objects.filter(id=pub_id).exists():
-            publication_serializer = PublicationSerializer(data=
-                                                           {"id": pub_id, 
-                                                            "source": source})
-            if publication_serializer.is_valid():
-                publication_serializer.save()
-            else:
-                return Response(publication_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        self.__save_publication__(pub_id, source)
 
         # Check if the UserPublication exists
         if not models.UserPublication.objects.filter(user=self.request.user.pk, 
@@ -88,6 +82,27 @@ class PublicationView(APIView):
                 return Response(user_publication_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"message": "Publication and UserPublication saved successfully."}, status=status.HTTP_201_CREATED)
+
+    def __save_publication__(self, pub_id, source):
+        if not models.Publication.objects.filter(id=pub_id).exists():
+            publication_serializer = PublicationSerializer(data={"id": pub_id, "source": source})
+            if publication_serializer.is_valid():
+                publication_serializer.save()
+            else:
+                return Response(publication_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # work = Works()[pub_id]
+        # related_and_referenced = work.get("related", []) + work.get("references", [])
+
+        # if related_and_referenced:
+        #     for pub in related_and_referenced:
+        #         id=pub["id"].split("/")[-1]
+        #         if not models.Publication.objects.filter(id=id).exists():
+        #             publication_serializer = PublicationSerializer(data={"id": id, "source": source})
+        #             if publication_serializer.is_valid():
+        #                 publication_serializer.save()
+        #             else:
+        #                 return Response(publication_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def __subscribe_on_author__(self, request):
         author_id = request.data.get('author_id', '')
@@ -128,37 +143,44 @@ class PublicationView(APIView):
             return Response({"message": "UserAuthor does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
 class PublicationListView(APIView):
-    # permission_classes = [AllowAny]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         page = int(request.query_params.get('page', 1))
         query = request.query_params.get('query', '')
         filter = request.query_params.get('filter', '')
-        year = request.query_params.get('year', '')
 
-        if page == 1:
-            request.session["result"] = []  # Reset results for a new search
-            request.session["page"] = 1
-            self.__searh_and_prioritize__(request, query, filter, year)
+        # if request.session.get("thread", ""):
+        #     if request.session["thread"].is_alive():
+        #         request.session["thread"].join()
 
-        # Retrieve the first 10 results
-        result = request.session.get("result", [])
-        res = result[:10]
-        
-        # Update session results (remove the first 10 items)
-        request.session["result"] = result[10:]
-        
-        # If fewer than 10 results remain, fetch more results
-        if len(request.session["result"]) < 10:
-            self.__searh_and_prioritize__(request, query, filter, year)
+        # if page == 1:
+        #     request.session["result"] = []
+        #     request.session["page"] = 1
+        #     self.__search_and_filter__(request)
+
+        # res = request.session["result"][:10]
+        # request.session["result"] = request.session["result"][10:]
+
+        # if len(request.session["result"]) < 10:
+        #     # request.session["thread"] = Thread(target=self.__search_and_filter__, args=(request,))
+        #     # request.session["thread"].start()
+
+        #     # thread = Thread(target=self.__search_and_filter__, args=(request,))
+        #     # thread.start()
+
+        #     self.__search_and_filter__(request)
+
+        res = self.__search_and_filter__(request)
 
         return Response(res)
 
-    def __searh_and_prioritize__(self, request, query, filter, year):
-        """
-        Fetches results from Works API and appends them to the session results.
-        """
-        page = request.session.get('page', 1)
+    def __search_and_filter__(self, request):
+        page = request.query_params.get('page', 1)
+        query = request.query_params.get('query', '')
+        # user_id = self.request.user.pk
+        filter = request.query_params.get('filter', '')
+        year = request.query_params.get('year', '')
 
         w = Works()
 
@@ -172,54 +194,147 @@ class PublicationListView(APIView):
         if query:
             w.search(query).sort(relevance_score="desc")
 
-        w.select(["title", "id", "doi","publication_year", "type"] )
+        # per_page = 60 // len(work_list)
         per_page = 60
+        # for work in work_list:
+        #     request.session["result"].extend(work.get(per_page=per_page, page=page))
+        w.select(["title", "id", "doi","publication_year", "type"] )
         res = w.get(per_page=per_page, page=page)
+        # for entry in res:
+        #     if entry["abstract_inverted_index"]:
+        #         sorted_words = sorted(entry["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+        #         entry["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+        #     else:
+        #         entry["abstract"] = ""
+        #     del entry["abstract_inverted_index"]
 
-        # Extend session results and update the page counter
-        session_results = request.session.get("result", [])
-        session_results.extend(res)
-        request.session["result"] = session_results  # Re-assign to persist changes
-        page+=1
-        request.session["page"] =page
+        #     entry["authors"] = {author["author"]["id"]: author["author"]["display_name"] for author in entry["authorships"]}
+        #     del entry["authorships"]
+        # request.session["result"].extend(res)
 
-class PersonalizationView(PublicationListView):
-    permission_classes = [AllowAny]
+        # request.session["page"] += 1
+
+        return res
+
+class PersonalizationView(PublicationView):
+    # permission_classes = [AllowAny]
 
     def get(self, request):
-        user_id = request.query_params.get('user_id', '')
-        if not user_id:
-            return Response({"error": "User ID is required"}, status=400)
+        request.session["works"] = []
 
-        personalized_results = []
+        works = request.session.get("works", [])
 
-        # Get user publications (views, likes, dislikes)
-        user_publications = models.UserPublication.objects.filter(user=user_id)
-        for user_pub in user_publications:
-            work = Works()[user_pub.publication.id]
-            personalized_results.append(work)
+        if not works:
+            request.session["works"] = []
+        if len(works) < 15:
+            self.__get_works__(request)
+            # self.__prioritize__(request)
 
-            # Include related works
-            related_works = Works().filter(relation_type="related_to", work_id=user_pub.publication.id).get()
-            personalized_results.extend(related_works)
+        works = request.session.get("works", [])
+        work = works.pop(0)
+        request.session["works"] = works
 
-            # Include referenced works
-            referenced_works = Works().filter(relation_type="references", work_id=user_pub.publication.id).get()
-            personalized_results.extend(referenced_works)
+        self.__update_publication_user_view_model__(request, pub_id=work["id"].split("/")[-1])
 
-        # Get works from subscribed authors
-        user_authors = models.UserAuthor.objects.filter(user=user_id)
-        for user_author in user_authors:
-            author_works = Works().filter(author_id=user_author.author.id).get()
-            personalized_results.extend(author_works)
+        # request.session["works"] = [{"id":"W1775749144"}]
+        
+        return Response({"work":work, "len":len(works)})
+        
+    def __get_works__(self, request):
+        works = request.session.get("works", [])
+        works.extend(Works().filter(language="en|ua|uk|ukr").sample(20).get())
+        request.session["works"] = works
 
-        # Remove duplicates
-        personalized_results = {work["id"]: work for work in personalized_results}.values()
+    def __prioritize__(self, request):
+        works = request.session["works"]
+        temp = []
+        related = self.__get_related_to_user__()
+        for index, work in enumerate(works):
+            score = float(work.get("score", 200))/2
+            if score < 50:
+                continue
 
-        return Response(personalized_results)
+            score = self.__update_score__(work, score, related)
+            
+            if score < 50:
+                continue
+
+            work["score"] = score
+            temp.append(work)
+
+        temp = sorted(temp, key=lambda x: x["score"], reverse=True)
+        request.session["works"] = temp
 
 
+    def __is_in_db__(self, work):
+        return models.Publication.objects.filter(id=work["id"].split("/")[-1]).exists()
 
+    def __update_score__(self, work, score, related):
+        # if not self.__is_in_db__(work):
+        #     return score
+        
+        work_id = work["id"].split("/")[-1]
+        user_id = self.request.user.pk
+
+        if work_id in related["viewed"]:
+            return 0
+
+        if work_id in related["liked_re"]:
+            score *= 2
+        if work_id in related["disliked_re"]:
+            score *= 0.5
+        if work_id in related["saved_re"]:
+            score *= 2.2
+        if work_id in related["viewed_re"]:
+            score *= 1.1
+        if work_id in related["author_re"]:
+            score *= 3
+        
+        return score
+
+    def __get_related_to_user__(self):
+        user_id = self.request.user.pk
+
+        liked = models.UserPublication.objects.filter(user=user_id, how="like").values_list("publication", flat=True)
+        disliked = models.UserPublication.objects.filter(user=user_id, how="dislike").values_list("publication", flat=True)
+        saved = models.UserPublication.objects.filter(user=user_id, how="save").values_list("publication", flat=True)
+        viewed = models.UserPublication.objects.filter(user=user_id, how="view").values_list("publication", flat=True)
+        print(viewed)
+
+        liked_re, disliked_re, saved_re, viewed_re, author_re = {}, {}, {}, {}, {}
+
+        for id in liked:
+            w = Works()[id]
+            liked_re.update({i.split("/")[-1] for i in w.get("related_works", []) + w.get("referenced_works", [])})
+        print(1)
+        
+        for id in disliked:
+            w = Works()[id]
+            disliked_re.update({i.split("/")[-1] for i in w.get("related_works", []) + w.get("referenced_works", [])})
+        print(2)
+        for id in saved:
+            w = Works()[id]
+            saved_re.update({i.split("/")[-1] for i in w.get("related_works", []) + w.get("referenced_works", [])})
+        print(3)
+        for id in viewed:    
+            w = Works()[id]
+            viewed_re.update({i.split("/")[-1] for i in w.get("related_works", []) + w.get("referenced_works", [])})
+            print(w.get("related_works", []) + w.get("referenced_works", []))
+        print(4)
+
+        # authors = models.UserAuthor.objects.filter(user=user_id).values_list("author", flat=True)
+        # for a in authors:
+        #     works_for_author = Works()
+        #     works_for_author.filter(author={"id": a})
+        #     works_for_author = works_for_author.get()
+        #     author_re.update({w["id"].split("/")[-1] for w in works_for_author})
+
+        return {"liked_re": liked_re,
+                "disliked_re": disliked_re, 
+                "saved_re": saved_re, 
+                "viewed_re": viewed_re, 
+                "viewed": viewed,
+                "author_re": author_re}
 
 
 
