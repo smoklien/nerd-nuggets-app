@@ -20,4 +20,6 @@ api.interceptors.request.use(
     }
 );
 
+api.defaults.withCredentials = true;
+
 export default api
