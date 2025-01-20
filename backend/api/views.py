@@ -72,8 +72,6 @@ class PublicationView(APIView):
         pub_id = request.query_params.get('pub_id', '')
         if not pub_id:
             raise ValidationError("Publication ID is required.")
-        # if not models.Publication.objects.filter(id=pub_id).exists():
-        #     raise ValidationError("Publication does not exist.")
         if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how=how).exists():
             models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how=how).delete()
             return Response({"message": "UserPublication deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
@@ -182,27 +180,6 @@ class PublicationListView(PublicationView):
         query = request.query_params.get('query', '')
         filter = request.query_params.get('filter', '')
 
-        # if request.session.get("thread", ""):
-        #     if request.session["thread"].is_alive():
-        #         request.session["thread"].join()
-
-        # if page == 1:
-        #     request.session["result"] = []
-        #     request.session["page"] = 1
-        #     self.__search_and_filter__(request)
-
-        # res = request.session["result"][:10]
-        # request.session["result"] = request.session["result"][10:]
-
-        # if len(request.session["result"]) < 10:
-        #     # request.session["thread"] = Thread(target=self.__search_and_filter__, args=(request,))
-        #     # request.session["thread"].start()
-
-        #     # thread = Thread(target=self.__search_and_filter__, args=(request,))
-        #     # thread.start()
-
-        #     self.__search_and_filter__(request)
-
         res = self.__search_and_filter__(request)
 
         return Response(res)
@@ -226,36 +203,18 @@ class PublicationListView(PublicationView):
         if query:
             w.search(query).sort(relevance_score="desc")
 
-        # per_page = 60 // len(work_list)
         per_page = 60
-        # for work in work_list:
-        #     request.session["result"].extend(work.get(per_page=per_page, page=page))
         w.select(["title", "id", "doi","publication_year", "type"] )
         res = w.get(per_page=per_page, page=page)
-        # for entry in res:
-        #     if entry["abstract_inverted_index"]:
-        #         sorted_words = sorted(entry["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
-        #         entry["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
-        #     else:
-        #         entry["abstract"] = ""
-        #     del entry["abstract_inverted_index"]
-
-        #     entry["authors"] = {author["author"]["id"]: author["author"]["display_name"] for author in entry["authorships"]}
-        #     del entry["authorships"]
-        # request.session["result"].extend(res)
-
-        # request.session["page"] += 1
 
         return res
 
 class PersonalizationView(PublicationView):
-    # permission_classes = [AllowAny]
-
 
     def get(self, request):
         # request.session["works"] = []
 
-        #works = request.session.get("works", [])
+        works = request.session.get("works", [])
 
         if not works:
             request.session["works"] = []
@@ -279,8 +238,6 @@ class PersonalizationView(PublicationView):
         del work["authorships"]
 
         self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
-
-        # request.session["works"] = [{"id":"W1775749144"}]
         
         return Response({"work":work, "len":len(works)})
         
