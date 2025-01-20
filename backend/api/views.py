@@ -275,7 +275,7 @@ class PersonalizationView(PublicationView):
         else:
             work["abstract"] = ""
         del work["abstract_inverted_index"]
-        work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+        work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in work["authorships"]}
         del work["authorships"]
 
         self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
