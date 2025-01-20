@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserSerializer, PublicationSerializer, UserPublicationSerializer, AuthorSerializer, UserAuthorSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.contrib.auth import update_session_auth_hash
 from . import models
 # from threading import Thread
 from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders, Concepts
@@ -360,10 +361,32 @@ class SavedView(PublicationListView):
             works.append(w)
         return Response(works)
 
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        user = request.user
+        return Response({"username": user.username})
 
+    def post(self, request):
+        new_username = request.data.get('username')
+        new_password = request.data.get('password')
+        
+        user = request.user
+        
+        if new_username:
+            user.username = new_username
+        if new_password:
+            user.set_password(new_password)
+            update_session_auth_hash(request, user)
 
+        print(user.username)
+        
+        user.save()
 
+        print(user.username)
+
+        return Response({"message": "Profile updated successfully."})
 
 
 
