@@ -31,7 +31,7 @@ class PublicationView(APIView):
             return Response({"error": "No publication id provided"}, status=400)
         if not source:
             return Response({"error": "No source provided"}, status=400)
-        self.__update_publication_user_view_model__(request)
+        self.__save_relation__(request)
         if source == "openalex":
             w = Works()[publication_id]
             fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
@@ -44,8 +44,15 @@ class PublicationView(APIView):
             del w["abstract_inverted_index"]
             w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
             del w["authorships"]
+
+            w["likes"] = models.UserPublication.objects.filter(publication=publication_id, how="like").count()
+            w["dislikes"] = models.UserPublication.objects.filter(publication=publication_id, how="dislike").count()
+
+            w["liked"] = models.UserPublication.objects.filter(user=self.request.user.pk, publication=publication_id, how="like").exists()
+            w["disliked"] = models.UserPublication.objects.filter(user=self.request.user.pk, publication=publication_id, how="dislike").exists()
+            w["saved"] = models.UserPublication.objects.filter(user=self.request.user.pk, publication=publication_id, how="save").exists()
+
             return Response(w)
-        # return Response(Works()[publication_id])
     
     def post(self, request):
         how = request.data.get('how', '')
@@ -53,10 +60,35 @@ class PublicationView(APIView):
             return self.__subscribe_on_author__(request)
         elif how in ("unsub", "unsubscribe"):
             return self.__unsubscribe_on_author__(request)
+        elif how in ("save", "like", "dislike"):
+            return self.__like_dislike_save__(request)
         else:
-            return self.__update_publication_user_view_model__(request)  
+            return self.__save_relation__(request)  
+        
+    def __like_dislike_save__(self, request):
+        how = request.data.get('how', '')
+        if how not in ("like", "dislike", "save"):
+            raise ValidationError("Invalid action.")
+        pub_id = request.query_params.get('pub_id', '')
+        if not pub_id:
+            raise ValidationError("Publication ID is required.")
+        # if not models.Publication.objects.filter(id=pub_id).exists():
+        #     raise ValidationError("Publication does not exist.")
+        if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how=how).exists():
+            models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how=how).delete()
+            return Response({"message": "UserPublication deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        self.__save_relation__(request)
+
+        if how == "like":
+            if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="dislike").exists():
+                models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="dislike").delete()
+        elif how == "dislike":
+            if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="like").exists():
+                models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="like").delete()
+
+        return Response({"message": "UserPublication saved successfully."}, status=status.HTTP_201_CREATED)
     
-    def __update_publication_user_view_model__(self, request, pub_id=None):
+    def __save_relation__(self, request, pub_id=None):
         if not pub_id:
             pub_id = request.query_params.get('pub_id', '')
         source = request.query_params.get('source', 'openalex')
@@ -142,7 +174,7 @@ class PublicationView(APIView):
         else:
             return Response({"message": "UserAuthor does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-class PublicationListView(APIView):
+class PublicationListView(PublicationView):
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -246,7 +278,7 @@ class PersonalizationView(PublicationView):
         work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
         del work["authorships"]
 
-        self.__update_publication_user_view_model__(request, pub_id=work["id"].split("/")[-1])
+        self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
 
         # request.session["works"] = [{"id":"W1775749144"}]
         
@@ -376,25 +408,6 @@ class SavedView(PublicationListView):
 
 
 
-# class NoteListCreate(generics.ListCreateAPIView):
-#     serializer_class = NoteSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         user = self.request.user
-#         return models.Note.objects.filter(author=user)
-
-#     def perform_create(self, serializer):
-#         if serializer.is_valid():
-#             serializer.save(author=self.request.user)
-#         else:
-#             print(serializer.errors)
 
 
-# class NoteDelete(generics.DestroyAPIView):
-#     serializer_class = NoteSerializer
-#     permission_classes = [IsAuthenticated]
 
-#     def get_queryset(self):
-#         user = self.request.user
-#         return models.Note.objects.filter(author=user)
