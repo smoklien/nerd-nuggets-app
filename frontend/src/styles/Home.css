@@ -2,11 +2,14 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    font-size: 1em;
 }
 
 :root {
     --primary-color: #262626;
     --secondary-color: #181818;
+    --primary-hover-color: #222222;
     --text-color: #eeebd6;
     --tag-color: #3e3e3e;
     --highlight-color: #79FF96;
@@ -111,7 +114,7 @@ input {
 .search-bar {
     display: flex;
     align-items: center;
-    width: 50%;
+    width: 60%;
     margin: 20px 0 0 100px;
     background-color: var(--input-bg);
     color: var(--input-text);
@@ -150,7 +153,7 @@ input {
 
 .results-section {
     margin: 20px 20px 0 100px;
-    width: 50%;
+    width: 60%;
     padding: clamp(1rem, 5vw, 2rem);
     overflow-y: auto;
     gap: 1rem;
@@ -171,10 +174,16 @@ input {
 
 .loading-message,
 .loading-more-message,
+.no-results-message,
 .end-message {
     text-align: center;
     margin: 20px 0;
     color: var(--text-color);
+}
+
+.observer-trigger {
+    height: 1px;
+    visibility: hidden;
 }
 
 .loading-more-message {
@@ -211,6 +220,29 @@ input {
     padding: 1rem;
     font-size: 1em;
     margin-bottom: 10px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    animation: flyIn 0.5s ease-out forwards;
+    animation-delay: var(--animation-delay, 0s);
+    cursor: pointer;
+}
+
+.result-card:hover {
+    transform: translateY(-50px); /* Move slightly upward */
+    background-color: var(--primary-hover-color);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4); 
+}
+
+@keyframes flyIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .result-title {
@@ -274,4 +306,8 @@ input {
     color: var(--input-text);
     /* background-color: var(--input-bg); */
     border-radius: 8px;
+}
+
+.info-section p {
+    color: var(--input-text);
 }
