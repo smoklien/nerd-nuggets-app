@@ -6,7 +6,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserSerializer, PublicationSerializer, UserPublicationSerializer, AuthorSerializer, UserAuthorSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.contrib.auth import update_session_auth_hash
 from . import models
+from datetime import datetime, timedelta
 # from threading import Thread
 from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders, Concepts
 
@@ -31,7 +33,7 @@ class PublicationView(APIView):
             return Response({"error": "No publication id provided"}, status=400)
         if not source:
             return Response({"error": "No source provided"}, status=400)
-        self.__update_publication_user_view_model__(request)
+        self.__save_relation__(request)
         if source == "openalex":
             w = Works()[publication_id]
             fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
@@ -44,8 +46,15 @@ class PublicationView(APIView):
             del w["abstract_inverted_index"]
             w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
             del w["authorships"]
+
+            w["likes"] = models.UserPublication.objects.filter(publication=publication_id, how="like").count()
+            w["dislikes"] = models.UserPublication.objects.filter(publication=publication_id, how="dislike").count()
+
+            w["liked"] = models.UserPublication.objects.filter(user=self.request.user.pk, publication=publication_id, how="like").exists()
+            w["disliked"] = models.UserPublication.objects.filter(user=self.request.user.pk, publication=publication_id, how="dislike").exists()
+            w["saved"] = models.UserPublication.objects.filter(user=self.request.user.pk, publication=publication_id, how="save").exists()
+
             return Response(w)
-        # return Response(Works()[publication_id])
     
     def post(self, request):
         how = request.data.get('how', '')
@@ -53,10 +62,33 @@ class PublicationView(APIView):
             return self.__subscribe_on_author__(request)
         elif how in ("unsub", "unsubscribe"):
             return self.__unsubscribe_on_author__(request)
+        elif how in ("save", "like", "dislike"):
+            return self.__like_dislike_save__(request)
         else:
-            return self.__update_publication_user_view_model__(request)  
+            return self.__save_relation__(request)  
+        
+    def __like_dislike_save__(self, request):
+        how = request.data.get('how', '')
+        if how not in ("like", "dislike", "save"):
+            raise ValidationError("Invalid action.")
+        pub_id = request.query_params.get('pub_id', '')
+        if not pub_id:
+            raise ValidationError("Publication ID is required.")
+        if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how=how).exists():
+            models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how=how).delete()
+            return Response({"message": "UserPublication deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        self.__save_relation__(request)
+
+        if how == "like":
+            if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="dislike").exists():
+                models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="dislike").delete()
+        elif how == "dislike":
+            if models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="like").exists():
+                models.UserPublication.objects.filter(user=self.request.user.pk, publication=pub_id, how="like").delete()
+
+        return Response({"message": "UserPublication saved successfully."}, status=status.HTTP_201_CREATED)
     
-    def __update_publication_user_view_model__(self, request, pub_id=None):
+    def __save_relation__(self, request, pub_id=None):
         if not pub_id:
             pub_id = request.query_params.get('pub_id', '')
         source = request.query_params.get('source', 'openalex')
@@ -142,7 +174,7 @@ class PublicationView(APIView):
         else:
             return Response({"message": "UserAuthor does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-class PublicationListView(APIView):
+class PublicationListView(PublicationView):
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -157,6 +189,7 @@ class PublicationListView(APIView):
     def __search_and_filter__(self, request):
         page = request.query_params.get('page', 1)
         query = request.query_params.get('query', '')
+        # user_id = self.request.user.pk
         filter = request.query_params.get('filter', '')
         year = request.query_params.get('year', '')
 
@@ -179,7 +212,6 @@ class PublicationListView(APIView):
         return res
 
 class PersonalizationView(PublicationView):
-    # permission_classes = [AllowAny]
 
     def get(self, request):
         # request.session["works"] = []
@@ -196,9 +228,20 @@ class PersonalizationView(PublicationView):
         work = works.pop(0)
         request.session["works"] = works
 
-        self.__update_publication_user_view_model__(request, pub_id=work["id"].split("/")[-1])
+        fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
+        work = {key: work[key] for key in fields if key in work}
+        if work["abstract_inverted_index"]:
+            sorted_words = sorted(work["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+            work["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+        else:
+            work["abstract"] = ""
+        del work["abstract_inverted_index"]
+        work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in work["authorships"]}
+        del work["authorships"]
 
-        return Response(work)
+        self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
+        
+        return Response({"work":work, "len":len(works)})
         
     def __get_works__(self, request):
         works = request.session.get("works", [])
@@ -225,11 +268,13 @@ class PersonalizationView(PublicationView):
         temp = sorted(temp, key=lambda x: x["score"], reverse=True)
         request.session["works"] = temp
 
-
     def __is_in_db__(self, work):
         return models.Publication.objects.filter(id=work["id"].split("/")[-1]).exists()
 
     def __update_score__(self, work, score, related):
+        # if not self.__is_in_db__(work):
+        #     return score
+        
         work_id = work["id"].split("/")[-1]
         user_id = self.request.user.pk
 
@@ -279,9 +324,103 @@ class PersonalizationView(PublicationView):
             print(w.get("related_works", []) + w.get("referenced_works", []))
         print(4)
 
+        # authors = models.UserAuthor.objects.filter(user=user_id).values_list("author", flat=True)
+        # for a in authors:
+        #     works_for_author = Works()
+        #     works_for_author.filter(author={"id": a})
+        #     works_for_author = works_for_author.get()
+        #     author_re.update({w["id"].split("/")[-1] for w in works_for_author})
+
         return {"liked_re": liked_re,
                 "disliked_re": disliked_re, 
                 "saved_re": saved_re, 
                 "viewed_re": viewed_re, 
                 "viewed": viewed,
                 "author_re": author_re}
+
+class SavedView(PublicationListView):
+    # permission_classes = [AllowAny]
+
+    def get(self, request):
+        user_id = self.request.user.pk
+        saved = models.UserPublication.objects.filter(user=user_id, how="save").values_list("publication", flat=True)
+        print(saved)
+        works = []
+        for id in saved:
+            w = Works()[id]
+            fields = ["title", "id", "doi","publication_year", "authorships", "abstract_inverted_index"]
+            w = {key: w[key] for key in fields if key in w}
+            if w["abstract_inverted_index"]:
+                sorted_words = sorted(w["abstract_inverted_index"].items(), key=lambda x: min(x[1]))
+                w["abstract"] = " ".join(word.rstrip('"') for word, positions in sorted_words)
+            else:
+                w["abstract"] = ""
+            del w["abstract_inverted_index"]
+            w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+            del w["authorships"]
+            works.append(w)
+        return Response(works)
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({"username": user.username})
+
+    def put(self, request):
+        new_username = request.data.get('username')
+        new_password = request.data.get('password')
+        
+        user = request.user
+        
+        if new_username:
+            user.username = new_username
+        if new_password:
+            user.set_password(new_password)
+            update_session_auth_hash(request, user)
+
+        print(user.username)
+        
+        user.save()
+
+        print(user.username)
+
+        return Response({"message": "Profile updated successfully."})
+
+class NotificationsView(PublicationListView):
+    def get(self, request):
+
+        last_time_searched_notifications = request.session.get('last_time_searched_notifications', '')
+        now = datetime.now()
+        notifications = request.session.get('notifications', '')
+        if notifications:
+            if last_time_searched_notifications:
+                last_time_searched_notifications = datetime.strptime(last_time_searched_notifications, "%Y-%m-%d %H:%M:%S")
+                if now - last_time_searched_notifications < timedelta(days=1):
+                    return Response(notifications)
+            
+        notifications = self.__search__(request)
+        request.session["notifications"] = notifications
+        request.session["last_time_searched_notifications"] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return Response(notifications)
+
+    def __search__(self, request):
+        user_id = self.request.user.pk
+
+        w = Works()
+        res = []
+        subscribed_authors = models.UserAuthor.objects.filter(user=user_id).values_list("author", flat=True)
+        for a in subscribed_authors:
+            w.filter(author={"id":a})
+            w.select(["title", "id", "doi","publication_year", "type", "created_date"] )
+            w = w.get()
+            # if w.get("related_author", ""):
+            #     w["related_author"] = w["related_author"].update(Authors[a]["display_name"])
+            # else:
+            for ww in w:
+                ww["related_author"] = Authors()[a]["display_name"]
+            res += w
+        res = sorted(res, key=lambda x: x["created_date"], reverse=True)[:10]
+        return res

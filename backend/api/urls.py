@@ -7,4 +7,8 @@ urlpatterns = [
     path('search/', views.PublicationListView.as_view(), name='search_publications'),
     path('pub/', views.PublicationView.as_view(), name='publication'),
     path('rec/', views.PersonalizationView.as_view(), name='recommendations'),
+    path('saved/', views.SavedView.as_view(), name='saved'),
+    path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('notifications/', views.NotificationsView.as_view(), name='notifications'),
+    #---------------------------------------------------
 ]
