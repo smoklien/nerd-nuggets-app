@@ -8,3 +8,4 @@ urlpatterns = [
     path('pub/', views.PublicationView.as_view(), name='publication'),
     path('rec/', views.PersonalizationView.as_view(), name='recommendations'),
     path('saved/', views.SavedView.as_view(), name='saved'),
+]
