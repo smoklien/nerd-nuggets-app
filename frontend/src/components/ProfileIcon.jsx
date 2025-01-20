@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../styles/ProfileMenu.css';
+import '../styles/ProfileIcon.css';
 
-export function ProfileMenu({ isActive, onToggle }) {
+export function ProfileIcon({ isActive, onToggle }) {
     // const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     
     // const toggleDropdown = () => {

@@ -424,7 +424,3 @@ class NotificationsView(PublicationListView):
             res += w
         res = sorted(res, key=lambda x: x["created_date"], reverse=True)[:10]
         return res
-
-
-
-
