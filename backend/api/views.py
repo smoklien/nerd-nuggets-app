@@ -6,7 +6,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserSerializer, PublicationSerializer, UserPublicationSerializer, AuthorSerializer, UserAuthorSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.contrib.auth import update_session_auth_hash
 from . import models
+from datetime import datetime, timedelta
 # from threading import Thread
 from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders, Concepts
 
@@ -234,7 +236,7 @@ class PersonalizationView(PublicationView):
         else:
             work["abstract"] = ""
         del work["abstract_inverted_index"]
-        work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
+        work["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in work["authorships"]}
         del work["authorships"]
 
         self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
@@ -265,7 +267,6 @@ class PersonalizationView(PublicationView):
 
         temp = sorted(temp, key=lambda x: x["score"], reverse=True)
         request.session["works"] = temp
-
 
     def __is_in_db__(self, work):
         return models.Publication.objects.filter(id=work["id"].split("/")[-1]).exists()
@@ -360,10 +361,69 @@ class SavedView(PublicationListView):
             works.append(w)
         return Response(works)
 
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        user = request.user
+        return Response({"username": user.username})
 
+    def put(self, request):
+        new_username = request.data.get('username')
+        new_password = request.data.get('password')
+        
+        user = request.user
+        
+        if new_username:
+            user.username = new_username
+        if new_password:
+            user.set_password(new_password)
+            update_session_auth_hash(request, user)
 
+        print(user.username)
+        
+        user.save()
 
+        print(user.username)
+
+        return Response({"message": "Profile updated successfully."})
+
+class NotificationsView(PublicationListView):
+    def get(self, request):
+
+        last_time_searched_notifications = request.session.get('last_time_searched_notifications', '')
+        now = datetime.now()
+        notifications = request.session.get('notifications', '')
+        if notifications:
+            if last_time_searched_notifications:
+                last_time_searched_notifications = datetime.strptime(last_time_searched_notifications, "%Y-%m-%d %H:%M:%S")
+                if now - last_time_searched_notifications < timedelta(days=1):
+                    return Response(notifications)
+            
+        notifications = self.__search__(request)
+        request.session["notifications"] = notifications
+        request.session["last_time_searched_notifications"] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return Response(notifications)
+
+    def __search__(self, request):
+        user_id = self.request.user.pk
+
+        w = Works()
+        res = []
+        subscribed_authors = models.UserAuthor.objects.filter(user=user_id).values_list("author", flat=True)
+        for a in subscribed_authors:
+            w.filter(author={"id":a})
+            w.select(["title", "id", "doi","publication_year", "type", "created_date"] )
+            w = w.get()
+            # if w.get("related_author", ""):
+            #     w["related_author"] = w["related_author"].update(Authors[a]["display_name"])
+            # else:
+            for ww in w:
+                ww["related_author"] = Authors()[a]["display_name"]
+            res += w
+        res = sorted(res, key=lambda x: x["created_date"], reverse=True)[:10]
+        return res
 
 
 
