@@ -368,7 +368,7 @@ class ProfileView(APIView):
         user = request.user
         return Response({"username": user.username})
 
-    def post(self, request):
+    def put(self, request):
         new_username = request.data.get('username')
         new_password = request.data.get('password')
         
