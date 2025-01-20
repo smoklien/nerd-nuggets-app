@@ -8,6 +8,7 @@ from .serializers import UserSerializer, PublicationSerializer, UserPublicationS
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import update_session_auth_hash
 from . import models
+from datetime import datetime, timedelta
 # from threading import Thread
 from pyalex import config, Works, Authors, Sources, Institutions, Topics, Publishers, Funders, Concepts
 
@@ -267,7 +268,6 @@ class PersonalizationView(PublicationView):
         temp = sorted(temp, key=lambda x: x["score"], reverse=True)
         request.session["works"] = temp
 
-
     def __is_in_db__(self, work):
         return models.Publication.objects.filter(id=work["id"].split("/")[-1]).exists()
 
@@ -388,6 +388,42 @@ class ProfileView(APIView):
 
         return Response({"message": "Profile updated successfully."})
 
+class NotificationsView(PublicationListView):
+    def get(self, request):
+
+        last_time_searched_notifications = request.session.get('last_time_searched_notifications', '')
+        now = datetime.now()
+        notifications = request.session.get('notifications', '')
+        if notifications:
+            if last_time_searched_notifications:
+                last_time_searched_notifications = datetime.strptime(last_time_searched_notifications, "%Y-%m-%d %H:%M:%S")
+                if now - last_time_searched_notifications < timedelta(days=1):
+                    return Response(notifications)
+            
+        notifications = self.__search__(request)
+        request.session["notifications"] = notifications
+        request.session["last_time_searched_notifications"] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return Response(notifications)
+
+    def __search__(self, request):
+        user_id = self.request.user.pk
+
+        w = Works()
+        res = []
+        subscribed_authors = models.UserAuthor.objects.filter(user=user_id).values_list("author", flat=True)
+        for a in subscribed_authors:
+            w.filter(author={"id":a})
+            w.select(["title", "id", "doi","publication_year", "type", "created_date"] )
+            w = w.get()
+            # if w.get("related_author", ""):
+            #     w["related_author"] = w["related_author"].update(Authors[a]["display_name"])
+            # else:
+            for ww in w:
+                ww["related_author"] = Authors()[a]["display_name"]
+            res += w
+        res = sorted(res, key=lambda x: x["created_date"], reverse=True)[:10]
+        return res
 
 
 

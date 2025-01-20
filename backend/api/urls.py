@@ -9,4 +9,5 @@ urlpatterns = [
     path('rec/', views.PersonalizationView.as_view(), name='recommendations'),
     path('saved/', views.SavedView.as_view(), name='saved'),
     path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('notifications/', views.NotificationsView.as_view(), name='notifications'),
 ]
