@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PublicationDetails } from './PublicationDetails';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
+import { MAX_DELAY_INDEX, STAGGER_DELAY } from '../constants';
 
 import api from '../api';
 
@@ -15,7 +16,7 @@ const testData = [
 ]
 
 
-export function Results({ query, filters }) {
+export function Results({ query, filters}) {
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -143,6 +144,9 @@ export function Results({ query, filters }) {
                     key={index}
                     className="result-card"
                     onClick={() => handlePublicationClick(result.id)}
+                    style={{
+                        "--animation-delay": `${(index % MAX_DELAY_INDEX) * STAGGER_DELAY}s`, // Modulo for repeating delays
+                    }}
                 >
                     <div className="result-content">
                         <p

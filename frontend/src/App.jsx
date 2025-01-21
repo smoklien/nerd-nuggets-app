@@ -6,6 +6,8 @@ import Register from './pages/Register'
 import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 import Profile from './pages/Profile'
+import Rec from './pages/Rec'
+import Saved from './pages/Saved'
 
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -36,6 +38,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/rec'
+          element={
+            <ProtectedRoute>
+              <Rec />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/saved'
+          element={
+            <ProtectedRoute>
+              <Saved />
             </ProtectedRoute>
           }
         />

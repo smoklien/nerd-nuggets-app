@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../styles/ProfileMenu.css';
+import '../styles/ProfileIcon.css';
 
-export function ProfileMenu({ isActive, onToggle }) {
+export function ProfileIcon({ isActive, onToggle }) {
     // const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     
     // const toggleDropdown = () => {
@@ -22,7 +22,7 @@ export function ProfileMenu({ isActive, onToggle }) {
     return (
         <div className="profile-menu">
             <button className="profile-icon" onClick={onToggle}>
-                <span className="profile-initial">S</span> {/* Replace 'S' with user's initial */}
+                <span className="profile-initial">P</span> {/* Replace 'S' with user's initial */}
             </button>
             {isActive && (
                 <div className="dropdown-menu">

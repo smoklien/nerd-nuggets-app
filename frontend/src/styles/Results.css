@@ -43,6 +43,15 @@
     padding: 1rem;
     font-size: 1em;
     margin-bottom: 10px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); 
+    cursor: pointer;
+}
+
+.result-card:hover {
+    background-color: var(--secondary-color); /* Slightly darker or lighter shade */
+    transform: translateY(-5px); 
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4); 
 }
 
 .result-title {

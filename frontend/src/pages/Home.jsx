@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, } from 'react';
 
 import '../styles/Home.css';
 import { Header } from '../components/Header';
 import { SearchBar } from '../components/SearchBar';
 import { Filter } from '../components/Filter';
 import { Notifications } from '../components/Notifications';
-import { ProfileMenu } from '../components/ProfileMenu';
+import { ProfileIcon } from '../components/ProfileIcon';
 import { Results } from '../components/Results';
 import { InfoSection } from '../components/InfoSection';
-
+import { RecIcon } from '../components/RecIcon';
+import { SavedIcon } from '../components/SavedIcon';
 
 function Home() {
     const [query, setQuery] = useState('');
@@ -20,11 +21,11 @@ function Home() {
         setQuery(query);
         setShowResults(true);
     };
- 
+
     const handleFilterChange = (name, value) => {
         setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
     };
-  
+
     const handleDropdownToggle = (dropdownName) => {
         setActiveDropdown((prev) => (prev === dropdownName ? null : dropdownName));
     };
@@ -45,11 +46,13 @@ function Home() {
                 {!showResults && <InfoSection />}
             </main>
             <header className="top-bar" onClick={(e) => e.stopPropagation()}>
+                <SavedIcon />
+                <RecIcon />
                 <Notifications
                     isActive={activeDropdown === 'notifications'}
                     onToggle={() => handleDropdownToggle('notifications')}
                 />
-                <ProfileMenu
+                <ProfileIcon
                     isActive={activeDropdown === 'profile'}
                     onToggle={() => handleDropdownToggle('profile')}
                 />
