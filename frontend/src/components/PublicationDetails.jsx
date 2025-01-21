@@ -18,7 +18,13 @@ export function PublicationDetails({ pubId, source, onClose, layout = "fixed" })
             setLoading(true);
             try {
                 const response = await api.get(`/api/pub/?pub_id=${pubId}&source=${source}`);
+                const { liked, disliked, saved, subscribed_authors  = [] } = response.data;
+
+                setSubscribedAuthors(new Set(subscribed_authors ));
                 setDetails(response.data);
+                setLiked(liked || false);
+                setDisliked(disliked || false);
+                setSaved(saved || false);
             } catch (error) {
                 console.error('Error fetching publication details:', error);
             } finally {
@@ -35,30 +41,42 @@ export function PublicationDetails({ pubId, source, onClose, layout = "fixed" })
             if (authorId) body.author_id = authorId;
 
             await api.post(`/api/pub/?pub_id=${pubId}&source=${source}`, body);
-
-            if (action === "like") {
-                setLiked(true);
-                setDisliked(false);
-            }
-            if (action === "dislike") {
-                setDisliked(true);
-                setLiked(false);
-            }
-            if (action === "save" && !saved) {
-                setSaved(true);
-            } else {
-                setSaved(false);
-            }
-
-            if (action === "subscribe" && authorId) {
-                setSubscribedAuthors((prev) => new Set(prev).add(authorId));
-            }
-            if (action === "unsubscribe" && authorId) {
-                setSubscribedAuthors((prev) => {
-                    const updated = new Set(prev);
-                    updated.delete(authorId);
-                    return updated;
-                });
+            switch (action) {
+                case "like":
+                    if (!liked) {
+                        setLiked(true);
+                        setDisliked(false);
+                    } else {
+                        setLiked(false);
+                    }
+                    break;
+                case "dislike":
+                    if (!disliked) {
+                        setDisliked(true);
+                        setLiked(false);
+                    } else {
+                        setDisliked(false);
+                    }
+                    break;
+                case "save":
+                    setSaved((prev) => !prev);
+                    break;
+                case "subscribe":
+                    if (authorId) {
+                        setSubscribedAuthors((prev) => new Set([...prev, authorId]));
+                    }
+                    break;
+                case "unsubscribe":
+                    if (authorId) {
+                        setSubscribedAuthors((prev) => {
+                            const updated = new Set(prev);
+                            updated.delete(authorId);
+                            return updated;
+                        });
+                    }
+                    break;
+                default:
+                    console.warn(`Unknown action: ${action}`);
             }
         } catch (error) {
             console.error(`Error performing ${action}:`, error);
@@ -125,22 +143,21 @@ export function PublicationDetails({ pubId, source, onClose, layout = "fixed" })
                                         <a href={id} target="_blank" rel="noopener noreferrer">
                                             {name}
                                         </a>
-                                        <button
-                                            className={`subscribe-button ${subscribedAuthors.has(id) ? "subscribed" : ""
+                                        {id && (
+                                            <button
+                                                className={`subscribe-button ${
+                                                    subscribedAuthors.has(id) ? "subscribed" : "not-subscribed"
                                                 }`}
-                                            onClick={() =>
-                                                handleAction(
-                                                    subscribedAuthors.has(id)
-                                                        ? "unsubscribe"
-                                                        : "subscribe",
-                                                    id
-                                                )
-                                            }
-                                        >
-                                            {subscribedAuthors.has(id)
-                                                ? "Unsubscribe"
-                                                : "Subscribe"}
-                                        </button>
+                                                onClick={() =>
+                                                    handleAction(
+                                                        subscribedAuthors.has(id) ? "unsubscribe" : "subscribe",
+                                                        id
+                                                    )
+                                                }
+                                            >
+                                                {subscribedAuthors.has(id) ? "Unsubscribe" : "Subscribe"}
+                                            </button>
+                                        )}
                                     </li>
                                 ))}
                             </ul>

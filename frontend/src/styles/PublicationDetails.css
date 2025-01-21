@@ -144,6 +144,7 @@ p {
     color: var(--primary-color);
 }
 
+
 .subscribe-button:hover {
     background-color: var(--highlight-color-hover);
 }
