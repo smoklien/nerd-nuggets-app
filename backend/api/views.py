@@ -24,7 +24,7 @@ class CreateUserView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
 class PublicationView(APIView):
-    permission_classes = [AllowAny]
+    # permission_classes = [AllowAny]
 
     def get(self, request):
         publication_id = request.query_params.get('pub_id', '')
@@ -47,6 +47,12 @@ class PublicationView(APIView):
             w["author"] = {author["author"]["id"]: author["author"]["display_name"] for author in w["authorships"]}
             del w["authorships"]
 
+            subscribed_authors = models.UserAuthor.objects.filter(
+                user=self.request.user.pk,
+                author__in=w["author"].keys()
+            ).values_list("author", flat=True)
+            w["subscribed_authors"] = list(subscribed_authors)
+        
             w["likes"] = models.UserPublication.objects.filter(publication=publication_id, how="like").count()
             w["dislikes"] = models.UserPublication.objects.filter(publication=publication_id, how="dislike").count()
 
@@ -241,7 +247,7 @@ class PersonalizationView(PublicationView):
 
         self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
         
-        return Response({"work":work, "len":len(works)})
+        return Response(work)
         
     def __get_works__(self, request):
         works = request.session.get("works", [])
@@ -343,8 +349,10 @@ class SavedView(PublicationListView):
 
     def get(self, request):
         user_id = self.request.user.pk
+
         saved = models.UserPublication.objects.filter(user=user_id, how="save").values_list("publication", flat=True)
-        print(saved)
+        print(f"User ID: {user_id}")
+        # print(saved)
         works = []
         for id in saved:
             w = Works()[id]

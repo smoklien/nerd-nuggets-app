@@ -14,7 +14,7 @@ function Saved() {
         const fetchSavedPublications = async () => {
             setLoading(true);
             try {
-                const response = await api.get('/api/saved');
+                const response = await api.get('api/saved/');
                 setSavedPublications(response.data);
             } catch (error) {
                 console.error('Error fetching saved publications:', error);
