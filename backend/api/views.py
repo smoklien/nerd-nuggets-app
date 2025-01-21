@@ -241,7 +241,7 @@ class PersonalizationView(PublicationView):
 
         self.__save_relation__(request, pub_id=work["id"].split("/")[-1])
         
-        return Response({"work":work, "len":len(works)})
+        return Response(work)
         
     def __get_works__(self, request):
         works = request.session.get("works", [])
